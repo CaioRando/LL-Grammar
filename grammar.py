@@ -160,8 +160,31 @@ class Grammar:
         self.build_start()
 
     def eliminate_direct_left_recursion(self, nonterminal: str) -> bool:
-        """Elimine a recursão direta de um não terminal, se existir."""
-        raise NotImplementedError("implemente a remoção de recursão direta")
+        productions = self.productions_for(nonterminal)
+
+        recursive: list[tuple[str, ...]] = []
+        base: list[tuple[str, ...]] = []
+
+        for production in productions:
+            if production.rhs and production.rhs[0] == nonterminal:
+                recursive.append(production.rhs[1:])
+            else:
+                base.append(production.rhs)
+
+        if not recursive:
+            return False
+
+        helper = self._fresh_nonterminal(nonterminal)
+        self._insert_nonterminal_after(nonterminal, helper)
+
+        new_a_alternatives = [beta + (helper,) for beta in base]
+        new_helper_alternatives = [alpha + (helper,) for alpha in recursive]
+        new_helper_alternatives.append(())
+
+        self._replace_productions(nonterminal, new_a_alternatives)
+        self._replace_productions(helper, new_helper_alternatives)
+
+        return True
 
     def eliminate_all_direct_left_recursion(self) -> None:
         for nonterminal in list(self.nonterminals):
