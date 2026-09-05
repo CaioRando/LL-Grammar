@@ -139,20 +139,84 @@ class Grammar:
         return candidate
 
     def first_of_sequence(self, symbols: tuple[str, ...]) -> set[str]:
-        """Calcule FIRST para uma sequência de zero ou mais símbolos."""
-        raise NotImplementedError("implemente FIRST de uma sequência")
+        result = set()
+
+        if not symbols:
+            result.add(EPSILON)
+            return result
+
+        all_nullable = True
+
+        for symbol in symbols:
+            if symbol in self.terminals:
+                result.add(symbol)
+                all_nullable = False
+                break
+
+            sym_first = self.first.get(symbol, set())
+            result.update(sym_first - {EPSILON})
+
+            if EPSILON not in sym_first:
+                all_nullable = False
+                break
+
+        if all_nullable:
+            result.add(EPSILON)
+
+        return result
 
     def build_first(self) -> None:
-        """Preencha self.first por iteração até um ponto fixo."""
-        raise NotImplementedError("implemente FIRST")
+        self.first = {nt: set() for nt in self.nonterminals}
+        changed = True
+
+        while changed:
+            changed = False
+            for prod in self.productions:
+                rhs_first = self.first_of_sequence(prod.rhs)
+                old_size = len(self.first[prod.lhs])
+                
+                self.first[prod.lhs].update(rhs_first)
+
+                if len(self.first[prod.lhs]) > old_size:
+                    changed = True
 
     def build_follow(self) -> None:
-        """Preencha self.follow; FIRST deve ter sido calculado antes."""
-        raise NotImplementedError("implemente FOLLOW")
+        self.follow = {nt: set() for nt in self.nonterminals}
+        self.follow[self.start_symbol].add(EOF)
+
+        changed = True
+
+        while changed:
+            changed = False
+            for prod in self.productions:
+                trailer = set(self.follow[prod.lhs])
+
+                for symbol in reversed(prod.rhs):
+                    if symbol in self.nonterminals:
+                        old_size = len(self.follow[symbol])
+                        self.follow[symbol].update(trailer)
+
+                        if len(self.follow[symbol]) > old_size:
+                            changed = True
+
+                        sym_first = self.first.get(symbol, set())
+                        if EPSILON in sym_first:
+                            trailer.update(sym_first - {EPSILON})
+                        else:
+                            trailer = set(sym_first)
+                    else:
+                        trailer = {symbol}
 
     def build_start(self) -> None:
-        """Associe a cada produção seu conjunto START."""
-        raise NotImplementedError("implemente START")
+        self.start = {}
+        for prod in self.productions:
+            beta_first = self.first_of_sequence(prod.rhs)
+            start_set = set(beta_first - {EPSILON})
+
+            if EPSILON in beta_first:
+                start_set.update(self.follow[prod.lhs])
+
+            self.start[prod] = start_set
 
     def build_sets(self) -> None:
         self.build_first()
